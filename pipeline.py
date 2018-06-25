@@ -6,6 +6,7 @@ from sklearn.model_selection import StratifiedShuffleSplit
 import numpy as np
 import pandas as pd
 from pandas.plotting import scatter_matrix
+from sklearn.preprocessing import Imputer
 
 HOUSING_PATH = os.path.join("datasets", "housing")
 HOUSING_URL = "https://raw.githubusercontent.com/ageron/handson-ml/master/datasets/housing/housing.tgz"
@@ -57,4 +58,18 @@ def visualize_data(data):
     attributes = ["median_house_value", "median_income", "total_rooms", "housing_median_age"]
     scatter_matrix(housing[attributes], figsize=(12,8))
     plt.show()
-visualize_data(train_set)
+# visualize_data(train_set)
+
+# prepare data
+train_set_labels = train_set["median_house_value"].copy()
+train_set = train_set.drop("median_house_value", axis=1)
+
+# drop 'ocean_proximity' which is a text attribute
+train_set_num = train_set.drop("ocean_proximity", axis=1)
+
+# data cleaning- fills in missing fields with an average value for numerical columns
+imputer = Imputer(strategy="median")
+imputer.fit(train_set_num)
+train_set = pd.DataFrame(imputer.transform(train_set_num), columns=train_set_num.columns)
+
+# data cleaning- fills in missing fields with an average value for text columns
