@@ -1,15 +1,42 @@
 import os
 import tarfile
-from six.moves import urllib
 import matplotlib.pyplot as plt
-from sklearn.model_selection import StratifiedShuffleSplit
 import numpy as np
 import pandas as pd
 from pandas.plotting import scatter_matrix
 from sklearn.preprocessing import Imputer
+from six.moves import urllib
+from sklearn.model_selection import StratifiedShuffleSplit
+from sklearn.pipeline import Pipeline
+from sklearn.preprocessing import StandardScaler
+from sklearn.pipeline import FeatureUnion
+from sklearn.preprocessing import LabelBinarizer
+from sklearn.preprocessing import OneHotEncoder
+from sklearn.base import BaseEstimator, TransformerMixin
+from sklearn.linear_model import LinearRegression
+
+
+# Create a class to select numerical or categorical columns
+# since Scikit-Learn doesn't handle DataFrames yet
+class DataFrameSelector(BaseEstimator, TransformerMixin):
+    def __init__(self, attribute_names):
+        self.attribute_names = attribute_names
+    def fit(self, X, y=None):
+        return self
+    def transform(self, X):
+        return X[self.attribute_names].values
 
 HOUSING_PATH = os.path.join("datasets", "housing")
 HOUSING_URL = "https://raw.githubusercontent.com/ageron/handson-ml/master/datasets/housing/housing.tgz"
+
+class CustomLabelBinarizer(BaseEstimator, TransformerMixin):
+    def __init__(self, sparse_output=False):
+        self.sparse_output = sparse_output
+    def fit(self, X, y=None):
+        return self
+    def transform(self, X, y=None):
+        enc = LabelBinarizer(sparse_output=self.sparse_output)
+        return enc.fit_transform(X)
 
 def fetch_data(housing_url=HOUSING_URL, housing_path=HOUSING_PATH):
     if not os.path.isdir(housing_path):
@@ -67,9 +94,35 @@ train_set = train_set.drop("median_house_value", axis=1)
 # drop 'ocean_proximity' which is a text attribute
 train_set_num = train_set.drop("ocean_proximity", axis=1)
 
-# data cleaning- fills in missing fields with an average value for numerical columns
-imputer = Imputer(strategy="median")
-imputer.fit(train_set_num)
-train_set = pd.DataFrame(imputer.transform(train_set_num), columns=train_set_num.columns)
-
 # data cleaning- fills in missing fields with an average value for text columns
+num_attribs = list(train_set_num)
+cat_attribs = ["ocean_proximity"]
+
+num_pipeline = Pipeline([
+        ('selector', DataFrameSelector(num_attribs)),
+        ('imputer', Imputer(strategy="median")),
+        ('std_scaler', StandardScaler()),
+    ])
+
+cat_pipeline = Pipeline([
+        ('selector', DataFrameSelector(cat_attribs)),
+        ('label_binarizer', CustomLabelBinarizer()),
+    ])
+
+full_pipeline = FeatureUnion(transformer_list=[
+        ("num_pipeline", num_pipeline),
+        ("cat_pipeline", cat_pipeline),
+    ])
+
+train_set_prep = full_pipeline.fit_transform(train_set)
+
+#Start training data
+lin_reg = LinearRegression()
+lin_reg.fit(train_set_prep, train_set_labels)
+
+some_data = train_set.iloc[:10000]
+some_labels = train_set_labels.iloc[:10000]
+some_data_prepared = full_pipeline.transform(some_data)
+print(some_data_prepared.shape)
+
+print(lin_reg.predict(some_data_prepared))
