@@ -11,10 +11,13 @@ from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
 from sklearn.pipeline import FeatureUnion
 from sklearn.preprocessing import LabelBinarizer
-from sklearn.preprocessing import OneHotEncoder
 from sklearn.base import BaseEstimator, TransformerMixin
 from sklearn.linear_model import LinearRegression
-
+from sklearn.metrics import  mean_squared_error
+from sklearn.tree import  DecisionTreeRegressor
+from sklearn.model_selection import cross_val_score
+from sklearn.ensemble import  RandomForestRegressor
+from sklearn.model_selection import  GridSearchCV
 
 # Create a class to select numerical or categorical columns
 # since Scikit-Learn doesn't handle DataFrames yet
@@ -117,12 +120,51 @@ full_pipeline = FeatureUnion(transformer_list=[
 train_set_prep = full_pipeline.fit_transform(train_set)
 
 #Start training data
-lin_reg = LinearRegression()
-lin_reg.fit(train_set_prep, train_set_labels)
 
-some_data = train_set.iloc[:10000]
-some_labels = train_set_labels.iloc[:10000]
-some_data_prepared = full_pipeline.transform(some_data)
-print(some_data_prepared.shape)
+def display_scores(scores):
+    print("Scores:", scores)
+    print("Mean:", scores.mean())
+    print("Standard deviation:", scores.std())
 
-print(lin_reg.predict(some_data_prepared))
+# lin_reg = LinearRegression()
+# lin_reg.fit(train_set_prep, train_set_labels)
+# data_predictions = lin_reg.predict(train_set_prep)
+# lin_scores = cross_val_score(lin_reg, train_set_prep, train_set_labels, scoring="neg_mean_squared_error", cv=10)
+# lin_rmse_scores = np.sqrt(-lin_scores)
+#
+# tree_reg = DecisionTreeRegressor()
+# tree_reg.fit(train_set_prep, train_set_labels)
+# data_predictions = tree_reg.predict(train_set_prep)
+# tree_scores = cross_val_score(tree_reg, train_set_prep, train_set_labels, scoring="neg_mean_squared_error", cv=10)
+# tree_rmse_scores = np.sqrt(-tree_scores)
+#
+# forest_reg = RandomForestRegressor()
+# forest_reg.fit(train_set_prep, train_set_labels)
+# data_predictions = tree_reg.predict(train_set_prep)
+# forest_scores = cross_val_score(forest_reg, train_set_prep, train_set_labels, scoring="neg_mean_squared_error", cv=10)
+# forest_rmse_scores = np.sqrt(-forest_scores)
+
+# display_scores(lin_rmse_scores)
+# display_scores(tree_rmse_scores)
+# display_scores(forest_rmse_scores)
+
+#Fine tune model
+param_grid = [
+    {'n_estimators': [3, 10, 30], 'max_features': [2, 4, 6, 8]},
+    {'bootstrap': [False], 'n_estimators': [3, 10], 'max_features': [2, 3, 4]},
+  ]
+
+forest_reg = RandomForestRegressor()
+grid_search = GridSearchCV(forest_reg, param_grid, cv=5, scoring='neg_mean_squared_error')
+grid_search.fit(train_set_prep, train_set_labels)
+
+final_model = grid_search.best_estimator_
+Y_test = test_set["median_house_value"]
+X_test = test_set.drop("median_house_value", axis=1)
+X_test_prep = full_pipeline.transform(X_test)
+
+final_prediction = final_model.predict(X_test_prep)
+final_mse = mean_squared_error(Y_test, final_prediction)
+final_rmse = np.sqrt(final_mse)
+
+print(final_rmse)
